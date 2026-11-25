@@ -33,6 +33,7 @@ async function seedAdminAndMod() {
 // const client = new Client<typeof server>("ws://localhost:2567");
 
 import { MyRoom } from "./MyRoom.ts";
+import { MapRoom, MapQueueRoom } from "./MapRoom.ts";
 
 auth.oauth.addProvider("discord", {
   key: "799645393566695465",
@@ -260,6 +261,8 @@ export const server = config({
     my_room: defineRoom(MyRoom).
       filterBy(["progress"]).
       sortBy({ clients: -1 }),
+    map_room: defineRoom(MapRoom),
+    map_queue: defineRoom(MapQueueRoom, { maxPlayers: 2 }),
   },
 
   routes: createRouter({
@@ -298,6 +301,17 @@ export const server = config({
     }),
     adminSeed: createEndpoint("/admin-seed", { method: "POST" }, async () => {
       return seedAdminAndMod();
+    }),
+
+    // Export the players currently seated in a map room. The snapshot comes
+    // straight from the room instance, so it is the same batch the room state
+    // is rendering on every connected client's canvas.
+    mapRoomPlayers: createEndpoint("/map-rooms/:roomId/players", { method: "GET" }, async (ctx) => {
+      const room = matchMaker.getLocalRoomById(ctx.params.roomId);
+      if (!room || !(room instanceof MapRoom)) {
+        return { roomId: ctx.params.roomId, players: [] };
+      }
+      return room.exportPlayers();
     }),
 
     // index,

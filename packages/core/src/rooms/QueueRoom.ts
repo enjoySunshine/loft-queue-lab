@@ -219,7 +219,11 @@ export class QueueRoom extends Room {
     }
     client.userData = queueData;
 
-    client.send("clients", 1);
+    // Report the current size of the waiting queue (including this client),
+    // so a client joining behind others is not always told "1".
+    const queueClientCount = this.clients.filter((c) => c.userData?.group?.ready !== true).length;
+    queueData.lastQueueClientCount = queueClientCount;
+    client.send("clients", queueClientCount);
   }
 
   createMatchGroup() {
@@ -422,13 +426,19 @@ export class QueueRoom extends Room {
 
       } else {
         /**
-         * Notify clients within the group on how many players are in the queue
+         * Notify clients within the group on how many players are in the queue.
+         *
+         * The waiting count is the number of clients across the whole room that
+         * have not been seated yet — not just the size of this group. A second
+         * player joining behind an existing one must therefore be told "2", not
+         * the size of their own freshly-created group.
          */
+        const queueClientCount = this.clients.filter((c) => c.userData?.group?.ready !== true).length;
+
         group.clients.forEach((client) => {
           //
           // avoid sending the same number of clients to the client if it hasn't changed
           //
-          const queueClientCount = group.clients.length;
           if (client.userData.lastQueueClientCount !== queueClientCount) {
             client.userData.lastQueueClientCount = queueClientCount;
             client.send("clients", queueClientCount);
